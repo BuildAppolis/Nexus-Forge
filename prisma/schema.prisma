@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  BASIC
+  CLIENT
+  MODERATOR
+  ADMIN
+}
+
+model User {
+  id                     String    @id @default(cuid()) @db.VarChar(21)
+  discordId              String?   @unique @map("discord_id") @db.VarChar(255)
+  email                  String    @unique @db.VarChar(255)
+  emailVerified          Boolean   @default(false) @map("email_verified")
+  hashedPassword         String?   @map("hashed_password") @db.VarChar(255)
+  avatar                 String?   @db.VarChar(255)
+  role                   Role      @default(BASIC)
+  policyId               Int?      @map("policy_id")
+  stripeSubscriptionId   String?   @map("stripe_subscription_id") @db.VarChar(191)
+  stripePriceId          String?   @map("stripe_price_id") @db.VarChar(191)
+  stripeCustomerId       String?   @map("stripe_customer_id") @db.VarChar(191)
+  stripeCurrentPeriodEnd DateTime? @map("stripe_current_period_end")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  policy                 Policy?                 @relation(fields: [policyId], references: [id])
+  sessions               Session[]
+  emailVerificationCodes EmailVerificationCode[]
+  passwordResetTokens    PasswordResetToken[]
+  posts                  Post[]
+
+  @@index([email])
+  @@index([discordId])
+  @@index([policyId])
+  @@map(name: "users")
+}
+
+model Policy {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]
+  permissions PolicyPermission[]
+
+  @@map(name: "policies")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique @db.VarChar(50)
+  description String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  policies PolicyPermission[]
+
+  @@map(name: "permissions")
+}
+
+model PolicyPermission {
+  policyId     Int
+  permissionId Int
+
+  policy     Policy     @relation(fields: [policyId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([policyId, permissionId])
+  @@map(name: "policy_permissions")
+}
+
+model Session {
+  id        String   @id @db.VarChar(255)
+  userId    String   @map("user_id") @db.VarChar(21)
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map(name: "sessions")
+}
+
+model EmailVerificationCode {
+  id        Int      @id @default(autoincrement())
+  userId    String   @unique @map("user_id") @db.VarChar(21)
+  email     String   @db.VarChar(255)
+  code      String   @db.VarChar(8)
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([email])
+  @@map(name: "email_verification_codes")
+}
+
+model PasswordResetToken {
+  id        String   @id @db.VarChar(40)
+  userId    String   @map("user_id") @db.VarChar(21)
+  expiresAt DateTime @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map(name: "password_reset_tokens")
+}
+
+model Post {
+  id        String   @id @default(cuid()) @db.VarChar(15)
+  userId    String   @map("user_id") @db.VarChar(255)
+  title     String   @db.VarChar(255)
+  excerpt   String   @db.VarChar(255)
+  content   String   @db.Text
+  status    String   @default("draft") @db.VarChar(10)
+  tags      String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@map(name: "posts")
+}
